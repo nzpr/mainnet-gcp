@@ -1,5 +1,6 @@
 provider "google" {
   project = "main-net"
+  zone = var.zone
 }
 
 terraform {
@@ -10,22 +11,25 @@ terraform {
   }
 }
 
-data google_compute_network default_network {
-  name = "default"
+data google_compute_subnetwork mainnet {
+  name = "mainnet"
 }
 
-data google_compute_address ext_addr {
+data google_compute_address rnode_ext {
   count = var.node_count
-  name = "rnode${count.index}"
-  region = replace(var.zone, "/-[a-z]$/", "")
+  name = "rnode-ext-${count.index}"
+}
+
+data google_compute_address rnode_int {
+  count = var.node_count
+  name = "rnode-int-${count.index}"
 }
 
 resource google_compute_instance host {
   count = var.node_count
-  name = "rnode${count.index}"
+  name = "rnode-${count.index}"
   hostname = "node${count.index}.${var.domain}"
   machine_type = var.machine_type
-  zone = var.zone
 
   boot_disk {
     initialize_params {
@@ -38,9 +42,10 @@ resource google_compute_instance host {
   tags = [ "rnode" ]
 
   network_interface {
-    network = data.google_compute_network.default_network.self_link
+    subnetwork = data.google_compute_subnetwork.mainnet.self_link
+    network_ip = data.google_compute_address.rnode_int[count.index].address
     access_config {
-      nat_ip = data.google_compute_address.ext_addr[count.index].address
+      nat_ip = data.google_compute_address.rnode_ext[count.index].address
     }
   }
 }
